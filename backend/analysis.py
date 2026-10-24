@@ -40,7 +40,7 @@ def _domain(url: str) -> str:
 
 
 def _normalize_text(value: str) -> str:
-    return re.sub(r"\\s+", " ", value).strip()
+    return re.sub(r"\s+", " ", value).strip()
 
 
 def ground_evidence(data: dict, page_text: str, comments: list[str]) -> dict:
