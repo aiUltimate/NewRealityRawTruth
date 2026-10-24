@@ -3,6 +3,7 @@ from fastapi.testclient import TestClient
 
 os.environ.setdefault("OMNI_DB_PATH", "./test_omni_hud.sqlite3")
 from backend.main import app
+from backend.analysis import ground_evidence, _domain
 
 client = TestClient(app)
 
@@ -36,7 +37,7 @@ def test_analysis_and_history_without_provider(monkeypatch, tmp_path):
     monkeypatch.delenv("GROQ_API_KEY", raising=False)
 
     response = client.post("/api/analyze", json={
-        "url": "https://example.com/article", "title": "Example",
+        "url": "https://www.example.com/article", "title": "Example",
         "text": "This is a sufficiently long sample article body used to test the local fallback without an API key.",
         "comments": []
     })
@@ -44,6 +45,7 @@ def test_analysis_and_history_without_provider(monkeypatch, tmp_path):
     data = response.json()
     assert data["result"]["provider"] == "local-fallback"
     assert data["result"]["raw_truth"]["plain_language_summary"]
+    assert data["result"]["domain"] == "example.com"
 
     history = client.get("/api/history?domain=example.com")
     assert history.status_code == 200
@@ -51,7 +53,29 @@ def test_analysis_and_history_without_provider(monkeypatch, tmp_path):
 
     detail = client.get(f"/api/history/{data['analysis_id']}")
     assert detail.status_code == 200
-    assert detail.json()["result"]["url"] == "https://example.com/article"
+    assert detail.json()["result"]["url"] == "https://www.example.com/article"
 
     missing = client.get("/api/history/999999")
     assert missing.status_code == 404
+
+
+def test_ground_evidence_removes_unverifiable_quotes():
+    data = {
+        "overall_confidence": "high",
+        "caveats": [],
+        "incentives": {"evidence": [
+            {"excerpt": "exact phrase", "observation": "observed", "interpretation": "inference", "confidence": "high"},
+            {"excerpt": "invented phrase", "observation": "observed", "interpretation": "inference", "confidence": "high"}
+        ]},
+        "spin": {"evidence": []},
+        "psychology": {"evidence": []}
+    }
+    result = ground_evidence(data, "This contains an exact   phrase in the article.", [])
+    assert len(result["incentives"]["evidence"]) == 1
+    assert result["incentives"]["evidence"][0]["excerpt"] == "exact phrase"
+    assert result["overall_confidence"] == "low"
+    assert any("removed" in caveat for caveat in result["caveats"])
+
+
+def test_domain_normalization():
+    assert _domain("https://www.Example.com/article") == "example.com"
