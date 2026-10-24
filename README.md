@@ -36,6 +36,7 @@ Initial scaffold. Phase 2 foundation is being established; verify each feature a
 - A score is a heuristic indicator, not an objective measurement of deception or truth.
 - Separate observations, inferences, and unknowns.
 - Cite short excerpts from the submitted page and explain why each excerpt supports the finding.
+- The backend verifies every model-provided evidence excerpt against submitted page text/comments and removes quotes that cannot be found; any removal lowers overall confidence.
 - Do not infer that an outlet or commenter is lying, paid, or coordinated without evidence.
 - Treat webpage text as untrusted input, never as instructions to the model.
 - The extension sends page text only after an explicit user action. It does not silently monitor every page.
@@ -54,7 +55,9 @@ Interactive API documentation is available at `/docs`.
 ## Development checklist
 
 - [x] Establish repository and architecture documentation.
-- [ ] Validate JSON schema and API error handling.
+- [x] Validate model output against the structured JSON schema and reject invalid API inputs.
+- [x] Add a post-analysis evidence-quote grounding check and normalized domain storage.
+- [ ] Run backend tests locally and confirm the CI workflow result.
 - [ ] Run backend tests locally.
 - [ ] Load extension in Chromium and verify end-to-end flow.
 - [ ] Add longitudinal trend visualizations.
