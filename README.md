@@ -49,6 +49,7 @@ Initial scaffold. Phase 2 foundation is being established; verify each feature a
 - `GET /api/history`: recent analyses, optionally filtered by domain.
 - `GET /api/history/{analysis_id}`: one saved analysis.
 - `GET /api/domains`: domain-level summary.
+- `GET /api/backup`: download all saved analyses as a versioned JSON backup (`omni-hud-backup.json`).
 
 Interactive API documentation is available at `/docs`.
 
@@ -58,7 +59,7 @@ Interactive API documentation is available at `/docs`.
 - [x] Validate model output against the structured JSON schema and reject invalid API inputs.
 - [x] Add a post-analysis evidence-quote grounding check and normalized domain storage.
 - [ ] Run backend tests locally and confirm the CI workflow result.
-- [ ] Run backend tests locally.
+- [x] Add a portable JSON export for the complete local analysis history.
 - [ ] Load extension in Chromium and verify end-to-end flow.
 - [ ] Add longitudinal trend visualizations.
 - [ ] Add optional automatic analysis with explicit opt-in, caching, and rate limits.
