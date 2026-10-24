@@ -1,5 +1,5 @@
 const $ = (id) => document.getElementById(id);
-const endpoint = () => $("api").value.trim().replace(/\\/$/, "");
+const endpoint = () => $("api").value.trim().replace(/\/$/, "");
 const esc = (value) => String(value ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 function list(items) { return items?.length ? '<ul>' + items.map(x => '<li>'+esc(x)+'</li>').join('') + '</ul>' : '<p class="muted">No supported findings recorded.</p>'; }
 function evidence(items) {
@@ -26,7 +26,7 @@ async function extractPage() {
   const [page] = await chrome.scripting.executeScript({
     target:{tabId:tab.id}, func:() => ({
       url:location.href,title:document.title||"",
-      text:((document.querySelector("article, main, [role='main']")||document.body)?.innerText||"").replace(/\\s+/g," ").trim().slice(0,18000),
+      text:((document.querySelector("article, main, [role='main']")||document.body)?.innerText||"").replace(/\s+/g," ").trim().slice(0,18000),
       comments:[]
     })
   });
