@@ -2,7 +2,6 @@ import json
 import os
 import sqlite3
 from contextlib import contextmanager
-from datetime import datetime, timezone
 from pathlib import Path
 from urllib.parse import urlparse
 
@@ -17,10 +16,15 @@ MAX_TEXT = int(os.getenv("OMNI_MAX_TEXT_CHARS", "18000"))
 app = FastAPI(title="OMNI-HUD API", version="0.1.0",
               description="Evidence-led, four-lens webpage analysis with local history.")
 
-# Loopback-only service by default; extension origin is allowed for local development.
-app.add_middleware(CORSMiddleware, allow_origins=["chrome-extension://*"],
-                   allow_credentials=False, allow_methods=["GET", "POST"],
-                   allow_headers=["Content-Type"])
+# This API is intended to bind to loopback. Permit extension origins for local use.
+app.add_middleware(
+    CORSMiddleware,
+    allow_origin_regex=r"chrome-extension://.*",
+    allow_origins=["http://127.0.0.1:8765", "http://localhost:8765"],
+    allow_credentials=False,
+    allow_methods=["GET", "POST"],
+    allow_headers=["Content-Type"],
+)
 
 @contextmanager
 def connection():
@@ -59,9 +63,8 @@ async def analyze_page(request: AnalyzeRequest):
     try:
         result = await analyze(request.url, request.title, text, request.comments)
     except (ValueError, KeyError, TypeError, json.JSONDecodeError) as exc:
-        raise HTTPException(status_code=502, detail=f"Analysis response was invalid: {exc}") from exc
+        raise HTTPException(status_code=502, detail=f"Analysis response was invalid: {type(exc).__name__}") from exc
     except Exception as exc:
-        # Do not expose provider credentials or raw request headers.
         raise HTTPException(status_code=502, detail=f"Analysis provider failed ({type(exc).__name__}). Check provider configuration and logs.") from exc
     with connection() as db:
         cursor = db.execute(
@@ -108,21 +111,22 @@ def domain_summaries(limit: int = Query(default=50, ge=1, le=200)):
         grouped.setdefault(row["domain"], [])
         try:
             result = json.loads(row["result_json"])
-            grouped[row["domain"]].append({
-                "incentive_rating": result.get("incentives", {}).get("rating"),
-                "spin_score": result.get("spin", {}).get("score"),
-                "provider": result.get("provider")
-            })
+            if result.get("provider") != "local-fallback":
+                grouped[row["domain"]].append({
+                    "incentive_rating": result.get("incentives", {}).get("rating"),
+                    "spin_score": result.get("spin", {}).get("score")
+                })
         except (ValueError, TypeError):
             continue
     output = []
     for row in rows:
         item = dict(row)
-        observations = [x for x in grouped.get(row["domain"], [])
-                        if x["provider"] != "local-fallback"]
+        observations = grouped.get(row["domain"], [])
+        incentive_values = [x["incentive_rating"] for x in observations if isinstance(x["incentive_rating"], int)]
+        spin_values = [x["spin_score"] for x in observations if isinstance(x["spin_score"], int)]
         item["scored_analyses"] = len(observations)
-        item["mean_incentive_signal"] = round(sum(x["incentive_rating"] for x in observations if isinstance(x["incentive_rating"], int)) / max(1, sum(isinstance(x["incentive_rating"], int) for x in observations)), 1) if observations else None
-        item["mean_framing_signal"] = round(sum(x["spin_score"] for x in observations if isinstance(x["spin_score"], int)) / max(1, sum(isinstance(x["spin_score"], int) for x in observations)), 1) if observations else None
+        item["mean_incentive_signal"] = round(sum(incentive_values) / len(incentive_values), 1) if incentive_values else None
+        item["mean_framing_signal"] = round(sum(spin_values) / len(spin_values), 1) if spin_values else None
         output.append(item)
     return {"domains": output}
 
