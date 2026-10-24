@@ -2,12 +2,14 @@ import json
 import os
 import sqlite3
 from contextlib import contextmanager
+from datetime import datetime, timezone
 from pathlib import Path
 from urllib.parse import urlparse
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 
 load_dotenv()
 
@@ -132,6 +134,35 @@ def domain_summaries(limit: int = Query(default=50, ge=1, le=200)):
         item["mean_framing_signal"] = round(sum(spin_values) / len(spin_values), 1) if spin_values else None
         output.append(item)
     return {"domains": output}
+
+@app.get("/api/backup")
+def export_backup():
+    """Export the complete local analysis history as a portable JSON backup."""
+    with connection() as db:
+        rows = db.execute(
+            "SELECT id,url,domain,title,analyzed_at,provider,result_json FROM analyses ORDER BY id"
+        ).fetchall()
+    records = []
+    for row in rows:
+        record = dict(row)
+        try:
+            record["result"] = json.loads(record.pop("result_json"))
+        except (ValueError, TypeError):
+            # Preserve corrupt rows rather than silently omitting user data.
+            record["result"] = None
+            record["result_json_unparsed"] = record.pop("result_json", "")
+        records.append(record)
+    payload = {
+        "backup_format": "omni-hud-history",
+        "backup_version": 1,
+        "exported_at": datetime.now(timezone.utc).isoformat(),
+        "record_count": len(records),
+        "records": records,
+    }
+    return JSONResponse(
+        content=payload,
+        headers={"Content-Disposition": 'attachment; filename="omni-hud-backup.json"'},
+    )
 
 @app.get("/")
 def root():
