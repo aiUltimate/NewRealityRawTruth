@@ -6,10 +6,12 @@ from backend.main import app
 
 client = TestClient(app)
 
+
 def test_health():
     response = client.get("/health")
     assert response.status_code == 200
     assert response.json()["status"] == "ok"
+
 
 def test_rejects_non_http_url():
     response = client.post("/api/analyze", json={
@@ -17,11 +19,22 @@ def test_rejects_non_http_url():
     })
     assert response.status_code == 422
 
+
+def test_rejects_blank_page_text():
+    response = client.post("/api/analyze", json={
+        "url": "https://example.com/article", "title": "Empty",
+        "text": " " * 50, "comments": []
+    })
+    assert response.status_code == 422
+
+
 def test_analysis_and_history_without_provider(monkeypatch, tmp_path):
     from backend import main
+
     monkeypatch.setattr(main, "DB_PATH", tmp_path / "test.sqlite3")
     main.init_db()
     monkeypatch.delenv("GROQ_API_KEY", raising=False)
+
     response = client.post("/api/analyze", json={
         "url": "https://example.com/article", "title": "Example",
         "text": "This is a sufficiently long sample article body used to test the local fallback without an API key.",
@@ -31,7 +44,14 @@ def test_analysis_and_history_without_provider(monkeypatch, tmp_path):
     data = response.json()
     assert data["result"]["provider"] == "local-fallback"
     assert data["result"]["raw_truth"]["plain_language_summary"]
-    history = client.get("/api/history")
+
+    history = client.get("/api/history?domain=example.com")
     assert history.status_code == 200
+    assert any(item["id"] == data["analysis_id"] for item in history.json()["items"])
+
     detail = client.get(f"/api/history/{data['analysis_id']}")
     assert detail.status_code == 200
+    assert detail.json()["result"]["url"] == "https://example.com/article"
+
+    missing = client.get("/api/history/999999")
+    assert missing.status_code == 404
