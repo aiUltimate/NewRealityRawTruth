@@ -1,3 +1,4 @@
+import json
 import os
 from fastapi.testclient import TestClient
 
@@ -92,7 +93,7 @@ def test_backup_exports_complete_history(monkeypatch, tmp_path):
         db.execute(
             "INSERT INTO analyses(url,domain,title,analyzed_at,provider,result_json) VALUES(?,?,?,?,?,?)",
             ("https://example.com/story", "example.com", "Story", "2026-10-24T12:00:00+00:00",
-             "local-fallback", __import__("json").dumps(saved_result)),
+             "local-fallback", json.dumps(saved_result)),
         )
 
     response = client.get("/api/backup")
