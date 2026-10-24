@@ -79,3 +79,28 @@ def test_ground_evidence_removes_unverifiable_quotes():
 
 def test_domain_normalization():
     assert _domain("https://www.Example.com/article") == "example.com"
+
+
+
+def test_backup_exports_complete_history(monkeypatch, tmp_path):
+    from backend import main
+
+    monkeypatch.setattr(main, "DB_PATH", tmp_path / "backup.sqlite3")
+    main.init_db()
+    saved_result = {"summary": "Saved analysis", "provider": "local-fallback"}
+    with main.connection() as db:
+        db.execute(
+            "INSERT INTO analyses(url,domain,title,analyzed_at,provider,result_json) VALUES(?,?,?,?,?,?)",
+            ("https://example.com/story", "example.com", "Story", "2026-10-24T12:00:00+00:00",
+             "local-fallback", __import__("json").dumps(saved_result)),
+        )
+
+    response = client.get("/api/backup")
+    assert response.status_code == 200
+    assert "attachment" in response.headers["content-disposition"]
+    backup = response.json()
+    assert backup["backup_format"] == "omni-hud-history"
+    assert backup["backup_version"] == 1
+    assert backup["record_count"] == 1
+    assert backup["records"][0]["result"] == saved_result
+    assert "result_json" not in backup["records"][0]
