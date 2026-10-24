@@ -1,5 +1,6 @@
 import json
 import os
+import re
 from datetime import datetime, timezone
 from urllib.parse import urlparse
 
@@ -33,9 +34,41 @@ raw_truth {plain_language_summary, factual_claims[], causal_mechanisms[], suppor
 overall_confidence (low|medium|high), caveats[].
 Confidence values for evidence items must be low, medium, or high. Scores must be integers from 0 to 100."""
 
+
+def _domain(url: str) -> str:
+    return (urlparse(url).hostname or "").lower().removeprefix("www.")
+
+
+def _normalize_text(value: str) -> str:
+    return re.sub(r"\\s+", " ", value).strip()
+
+
+def ground_evidence(data: dict, page_text: str, comments: list[str]) -> dict:
+    """Drop evidence quotes not found in the supplied page or comments."""
+    source = _normalize_text(page_text + " " + " ".join(comments))
+    removed = 0
+    for lens_name in ("incentives", "spin", "psychology"):
+        lens = data.get(lens_name, {})
+        kept = []
+        for item in lens.get("evidence", []):
+            excerpt = _normalize_text(str(item.get("excerpt", "")))
+            if excerpt and excerpt in source:
+                item["excerpt"] = excerpt
+                kept.append(item)
+            else:
+                removed += 1
+        lens["evidence"] = kept
+    if removed:
+        data.setdefault("caveats", []).append(
+            f"{removed} evidence item(s) were removed because their quoted excerpts could not be verified in the supplied page text or comments."
+        )
+        data["overall_confidence"] = "low"
+    return data
+
+
 def _fallback(url: str, title: str, text: str, comments: list[str]) -> dict:
     """Honest local fallback: do not fabricate an LLM analysis or pretend to detect spin."""
-    domain = urlparse(url).hostname or ""
+    domain = _domain(url)
     first = " ".join(text.split())[:700]
     return {
         "title": title, "url": url, "domain": domain,
@@ -48,7 +81,7 @@ def _fallback(url: str, title: str, text: str, comments: list[str]) -> dict:
           "emotional_triggers": [], "evidence": [], "unknowns": ["No model-based framing analysis was run; zero means unassessed, not absence of spin."]},
         "psychology": {"observed_dynamics": [], "possible_mechanisms": [],
           "coordination_assessment": "No model-based assessment was run.",
-          "evidence": [], "unknowns": ["Comments were supplied." if comments else "No comments were supplied; crowd dynamics cannot be assessed."]},
+          "evidence": [], "unknowns": ["No model-based crowd-dynamics assessment was run." if comments else "No comments were supplied; crowd dynamics cannot be assessed."]},
         "raw_truth": {"plain_language_summary": first or "No usable text supplied.",
           "factual_claims": [], "causal_mechanisms": [], "supported_conclusions": [],
           "unresolved_questions": ["What claims can be independently verified from primary sources?"],
@@ -57,8 +90,9 @@ def _fallback(url: str, title: str, text: str, comments: list[str]) -> dict:
         "caveats": ["Configure GROQ_API_KEY to enable model-based analysis.", "This fallback does not treat unassessed scores as evidence of absence."]
     }
 
+
 async def analyze(url: str, title: str, text: str, comments: list[str]) -> dict:
-    domain = urlparse(url).hostname or ""
+    domain = _domain(url)
     api_key = os.getenv("GROQ_API_KEY", "").strip()
     if not api_key:
         return _fallback(url, title, text, comments)
@@ -90,5 +124,5 @@ async def analyze(url: str, title: str, text: str, comments: list[str]) -> dict:
     data["title"] = data.get("title") or title
     data["analyzed_at"] = datetime.now(timezone.utc).isoformat()
     data["provider"] = f"groq:{model}"
-    validated = AnalysisResult.model_validate(data)
-    return validated.model_dump()
+    validated = AnalysisResult.model_validate(data).model_dump()
+    return ground_evidence(validated, text[:18000], comments[:100])
