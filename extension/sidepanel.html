@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>OMNI-HUD</title>
+  <link rel="stylesheet" href="sidepanel.css">
+</head>
+<body>
+  <header>
+    <div class="eyebrow">REALITY DECONSTRUCTOR / LOCAL-FIRST</div>
+    <h1>OMNI-HUD</h1>
+    <p>Separate what is observed from what is inferred.</p>
+  </header>
+  <section class="controls">
+    <button id="analyze">Analyze this page</button>
+    <button id="history" class="secondary">History</button>
+    <div id="status" role="status">Ready. Analysis starts only when you request it.</div>
+    <label for="api">API endpoint</label>
+    <input id="api" value="http://127.0.0.1:8765" spellcheck="false">
+  </section>
+  <section id="results" aria-live="polite">
+    <div class="empty">Your four-lens analysis will appear here.</div>
+  </section>
+  <script src="sidepanel.js"></script>
+</body>
+</html>
