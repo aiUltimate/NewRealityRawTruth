@@ -3,7 +3,7 @@
   "name": "OMNI-HUD — The Reality Deconstructor",
   "version": "0.1.0",
   "description": "Analyze webpages through evidence-led incentive, framing, psychology, and first-principles lenses.",
-  "permissions": ["activeTab", "sidePanel", "storage"],
+  "permissions": ["activeTab", "scripting", "sidePanel", "storage"],
   "host_permissions": ["http://127.0.0.1:8765/*"],
   "background": {"service_worker": "service-worker.js"},
   "action": {"default_title": "Open OMNI-HUD"},
