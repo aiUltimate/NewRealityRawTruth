@@ -145,12 +145,13 @@ def export_backup():
     records = []
     for row in rows:
         record = dict(row)
+        raw_result = record.pop("result_json")
         try:
-            record["result"] = json.loads(record.pop("result_json"))
+            record["result"] = json.loads(raw_result)
         except (ValueError, TypeError):
             # Preserve corrupt rows rather than silently omitting user data.
             record["result"] = None
-            record["result_json_unparsed"] = record.pop("result_json", "")
+            record["result_json_unparsed"] = raw_result
         records.append(record)
     payload = {
         "backup_format": "omni-hud-history",
