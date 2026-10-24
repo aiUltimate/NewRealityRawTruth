@@ -14,3 +14,8 @@ jobs:
           cache: pip
       - run: pip install -r requirements.txt
       - run: pytest -q
+      - name: Check extension JavaScript syntax
+        run: |
+          node --check extension/sidepanel.js
+          node --check extension/service-worker.js
+          node --check extension/content.js
